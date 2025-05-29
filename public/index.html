@@ -1,0 +1,77 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Simple Video Call App</title>
+</head>
+<body>
+  <h1>Video Call</h1>
+  <video id="localVideo" autoplay muted></video>
+  <video id="remoteVideo" autoplay></video>
+  <br/>
+  <button id="startBtn">Start Call</button>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const roomId = "demo-room";
+
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
+    const startBtn = document.getElementById("startBtn");
+
+    let peerConnection;
+    const config = {
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    };
+
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then((stream) => {
+        localVideo.srcObject = stream;
+        startBtn.onclick = () => startCall(stream);
+      });
+
+    socket.emit("join-room", roomId);
+
+    socket.on("user-joined", async () => {
+      console.log("User joined, creating offer");
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      socket.emit("offer", { offer, room: roomId });
+    });
+
+    socket.on("offer", async ({ offer }) => {
+      console.log("Received offer");
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      socket.emit("answer", { answer, room: roomId });
+    });
+
+    socket.on("answer", async ({ answer }) => {
+      console.log("Received answer");
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    socket.on("ice-candidate", ({ candidate }) => {
+      console.log("Received ICE candidate");
+      peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    });
+
+    function startCall(stream) {
+      peerConnection = new RTCPeerConnection(config);
+      stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+      peerConnection.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit("ice-candidate", { candidate: event.candidate, room: roomId });
+        }
+      };
+    }
+  </script>
+</body>
+</html>

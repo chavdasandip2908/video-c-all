@@ -1,53 +1,47 @@
 const express = require("express");
 const http = require("http");
-const cors = require("cors");
+const path = require("path");
 const { Server } = require("socket.io");
 
 const app = express();
-app.use(cors());
+
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, "public")));
 
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-  },
+
+const io = new Server(server);
+
+// Test route (optional, frontend se ab serve ho raha hai)
+app.get("/api", (req, res) => {
+  res.send("Server is running on same domain");
 });
 
-
-// test route
-app.get("/", (req, res) => {
-  res.send("Server is running");
-});
-// Handle socket connection
+// Socket.io logic
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  // this code is for joining a room
   socket.on("join-room", (roomId) => {
     console.log(`User ${socket.id} joined room: ${roomId}`);
     socket.join(roomId);
     socket.to(roomId).emit("user-joined", socket.id);
   });
 
-  // this code is for sending an offer to another user in the room
   socket.on("offer", (data) => {
     console.log(`User ${socket.id} sending offer to room: ${data.room}`);
     socket.to(data.room).emit("offer", data);
   });
 
-  // this code is for sending an answer to the offer
   socket.on("answer", (data) => {
     console.log(`User ${socket.id} sending answer to room: ${data.room}`);
     socket.to(data.room).emit("answer", data);
   });
 
-  // this code is for sending ICE candidates
   socket.on("ice-candidate", (data) => {
     console.log(`User ${socket.id} sending ICE candidate to room: ${data.room}`);
     socket.to(data.room).emit("ice-candidate", data);
   });
 
-  // this code is for handling user disconnection from a room
   socket.on("disconnecting", () => {
     console.log(`User ${socket.id} is disconnecting`);
     const rooms = [...socket.rooms].filter((r) => r !== socket.id);
@@ -58,11 +52,11 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
-    // emit disconnecting
     socket.broadcast.emit("user-disconnected", socket.id);
   });
 });
 
-server.listen(5001, () =>
-  console.log("Server running on http://localhost:5001")
+const PORT = process.env.PORT || 5001;
+server.listen(PORT, () =>
+  console.log(`Server running on http://localhost:${PORT}`)
 );
