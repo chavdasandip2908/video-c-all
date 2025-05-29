@@ -24,27 +24,32 @@ io.on("connection", (socket) => {
 
   // this code is for joining a room
   socket.on("join-room", (roomId) => {
+    console.log(`User ${socket.id} joined room: ${roomId}`);
     socket.join(roomId);
     socket.to(roomId).emit("user-joined", socket.id);
   });
 
   // this code is for sending an offer to another user in the room
   socket.on("offer", (data) => {
+    console.log(`User ${socket.id} sending offer to room: ${data.room}`);
     socket.to(data.room).emit("offer", data);
   });
 
   // this code is for sending an answer to the offer
   socket.on("answer", (data) => {
+    console.log(`User ${socket.id} sending answer to room: ${data.room}`);
     socket.to(data.room).emit("answer", data);
   });
 
   // this code is for sending ICE candidates
   socket.on("ice-candidate", (data) => {
+    console.log(`User ${socket.id} sending ICE candidate to room: ${data.room}`);
     socket.to(data.room).emit("ice-candidate", data);
   });
 
   // this code is for handling user disconnection from a room
   socket.on("disconnecting", () => {
+    console.log(`User ${socket.id} is disconnecting`);
     const rooms = [...socket.rooms].filter((r) => r !== socket.id);
     rooms.forEach((room) => {
       socket.to(room).emit("user-left", socket.id);
