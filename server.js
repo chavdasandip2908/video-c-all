@@ -39,6 +39,7 @@ io.on("connection", (socket) => {
 
   socket.on("ice-candidate", (data) => {
     console.log(`User ${socket.id} sending ICE candidate to room: ${data.room}`);
+    
     socket.to(data.room).emit("ice-candidate", data);
   });
 
