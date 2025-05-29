@@ -13,6 +13,11 @@ const io = new Server(server, {
   },
 });
 
+
+// test route
+app.get("/", (req, res) => {
+  res.send("Server is running");
+});
 // Handle socket connection
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
