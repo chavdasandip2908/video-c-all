@@ -1,56 +1,143 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Simple Video Call App</title>
+    <title>Responsive Video Call App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
-      /* Basic styling for better layout */
+      /* --- Global Styles --- */
       body {
-        font-family: Arial, sans-serif;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         display: flex;
-        flex-direction: column;
-        align-items: center;
-        margin-top: 20px;
+        flex-direction: column; /* Stack elements vertically by default */
+        align-items: center; /* Center items horizontally */
+        margin: 0; /* Remove default body margin */
+        padding: 20px;
         background-color: #f0f2f5;
-      }
-      h1 {
         color: #333;
+        min-height: 100vh; /* Ensure body takes full viewport height */
+        box-sizing: border-box; /* Include padding in element's total width and height */
       }
+
+      h1 {
+        color: #2c3e50;
+        margin-bottom: 25px;
+        text-align: center;
+      }
+
+      /* --- Video Container Styles --- */
       #videoContainer {
         display: flex;
-        gap: 20px;
-        margin-bottom: 20px;
-        flex-wrap: wrap; /* Allow videos to wrap on smaller screens */
-        justify-content: center;
+        flex-wrap: wrap; /* Allow videos to wrap to the next line if needed */
+        gap: 20px; /* Space between video elements */
+        justify-content: center; /* Center videos when there's extra space */
+        width: 100%; /* Take full width of parent */
+        max-width: 1000px; /* Limit overall width for larger screens */
+        margin-bottom: 25px;
       }
+
       video {
-        width: 45vw; /* Make videos take up about half the viewport width */
-        max-width: 480px; /* Max width for larger screens */
-        height: auto;
+        width: 100%; /* Default: Take full width of its container (which is typically half screen on desktop) */
+        max-width: 500px; /* Max width for individual video */
+        height: auto; /* Maintain aspect ratio */
+        background-color: #000; /* Black background when no video stream */
         border: 2px solid #007bff;
-        background-color: #000; /* Black background for no video */
-        border-radius: 8px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        border-radius: 10px;
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        object-fit: cover; /* Ensures video fills the element while maintaining aspect ratio */
       }
+
       #localVideo {
-        border-color: #28a745; /* Different color for local video */
+        border-color: #28a745; /* Distinct border for local video */
       }
+
+      /* --- Buttons and Controls --- */
       button {
-        padding: 10px 20px;
-        font-size: 16px;
+        padding: 12px 25px;
+        font-size: 17px;
         background-color: #007bff;
         color: white;
         border: none;
-        border-radius: 5px;
+        border-radius: 8px;
         cursor: pointer;
-        transition: background-color 0.3s ease;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+        margin-top: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
       }
+
       button:hover {
         background-color: #0056b3;
+        transform: translateY(-2px); /* Slight lift on hover */
       }
+
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+      }
+
+      /* --- Message Log --- */
       #messages {
-        margin-top: 20px;
+        margin-top: 30px;
+        padding: 15px;
+        background-color: #e9ecef;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 600px;
+        max-height: 150px; /* Limit height of message log */
+        overflow-y: auto; /* Enable scrolling for messages */
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+      }
+
+      #messages p {
+        margin: 5px 0;
+        color: #555;
         font-size: 14px;
-        color: #666;
+        line-height: 1.4;
+      }
+
+      /* --- Responsive Design with Media Queries --- */
+
+      /* For screens wider than 768px (tablets and desktops) */
+      @media (min-width: 768px) {
+        #videoContainer {
+          /* Videos appear side-by-side on larger screens */
+          flex-direction: row;
+        }
+        video {
+          /* Each video takes roughly half the container width minus gap */
+          width: calc(50% - 10px); /* 50% minus half the gap */
+        }
+      }
+
+      /* For screens smaller than 768px (mobile phones) */
+      @media (max-width: 767px) {
+        body {
+          padding: 15px;
+        }
+        h1 {
+          font-size: 24px;
+          margin-bottom: 20px;
+        }
+        #videoContainer {
+          flex-direction: column; /* Stack videos vertically */
+          gap: 15px;
+        }
+        video {
+          width: 95%; /* Videos take almost full width on small screens */
+          max-width: 400px; /* Max width for mobile */
+        }
+        button {
+          width: 95%; /* Buttons also take more width */
+          max-width: 300px;
+          font-size: 16px;
+          padding: 10px 20px;
+        }
+        #messages {
+          width: 95%;
+          padding: 10px;
+          font-size: 13px;
+        }
       }
     </style>
   </head>
@@ -63,73 +150,88 @@
     </div>
 
     <button id="startBtn">Start Call</button>
+
     <div id="messages"></div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-      // Initialize Socket.IO connection
-      const socket = io();
-      // Define a fixed room ID for simplicity. In a real app, this would be dynamic.
-      const roomId = "demo-room";
+      // --- Socket.IO Setup ---
+      const socket = io(); // Initializes Socket.IO connection to the server
+      const roomId = "demo-room"; // A fixed room ID for initial testing (will be dynamic later)
 
-      // Get references to HTML video elements and the start button
-      const localVideo = document.getElementById("localVideo");
-      const remoteVideo = document.getElementById("remoteVideo");
-      const startBtn = document.getElementById("startBtn");
-      const messagesDiv = document.getElementById("messages");
+      // --- HTML Element References ---
+      const localVideo = document.getElementById("localVideo"); // Your video element
+      const remoteVideo = document.getElementById("remoteVideo"); // Other user's video element
+      const startBtn = document.getElementById("startBtn"); // Button to start the call
+      const messagesDiv = document.getElementById("messages"); // Div for displaying log messages
 
-      // WebRTC related variables
-      let peerConnection; // Represents the peer-to-peer connection
-      let localStream; // Holds the local media stream (camera/mic)
-      // Stores ICE candidates received before the RTCPeerConnection is ready
-      let pendingCandidates = [];
+      // --- WebRTC Variables ---
+      let peerConnection; // This will hold the RTCPeerConnection object, central to WebRTC
+      let localStream; // This will hold your local media stream (video and audio)
+      let pendingCandidates = []; // Stores ICE candidates received before peerConnection is ready
 
-      // WebRTC configuration (STUN server for NAT traversal)
+      // WebRTC Configuration: Defines STUN/TURN servers for NAT traversal
+      // STUN server helps peers discover their public IP addresses
       const config = {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" }, // Google's public STUN server
         ],
       };
 
-      // --- 1. Get User Media (Camera/Mic) ---
-      // Request access to the user's camera and microphone
-      // This runs immediately when the page loads to get your local stream ready
+      // --- Helper Function for Logging Messages to UI ---
+      function logMessage(message) {
+        const p = document.createElement("p");
+        // Prepend timestamp for better readability
+        p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        messagesDiv.prepend(p); // Add new messages at the top of the div
+
+        // Keep only the last 5 messages to prevent the log from growing too large
+        while (messagesDiv.children.length > 5) {
+          messagesDiv.removeChild(messagesDiv.lastChild);
+        }
+      }
+
+      // --- 1. Get User Media (Camera/Mic Access) ---
+      // This function attempts to get access to the user's camera and microphone.
+      // It runs automatically when the page loads to prepare your local stream.
+      // If video access fails, it attempts audio-only.
       navigator.mediaDevices
-        .getUserMedia({ video: true, audio: true })
+        .getUserMedia({ video: true, audio: true }) // Request both video and audio
         .then((stream) => {
           // If successful, assign the stream to the local video element
           localStream = stream;
           localVideo.srcObject = stream;
-          logMessage("Local media access granted.");
+          logMessage("Local media access granted (video and audio).");
 
-          // After getting local media, join the Socket.IO room
+          // After getting local media, the user is ready to join the room via Socket.IO
           socket.emit("join-room", roomId);
 
           // Enable the start button and set its click handler
           startBtn.onclick = () => {
             // Only start the call if a peer connection hasn't been established yet
             if (!peerConnection) {
-              startCall();
+              startCall(); // Call the function to set up the WebRTC connection
               logMessage("Attempting to start call...");
-              startBtn.disabled = true; // Disable button after starting call attempt
+              startBtn.disabled = true; // Disable the button to prevent multiple call attempts
             }
           };
         })
         .catch((error) => {
-          // Handle cases where video/audio access is denied or unavailable
+          // --- Handle cases where video/audio access is denied or unavailable ---
           logMessage(
-            "Could not get local media (video/audio). Attempting with audio only if available or no media."
+            "Could not get video access. Attempting with audio only or no media."
           );
-          console.error("Error accessing media devices: ", error);
+          console.error("Error accessing video/audio devices: ", error);
 
           // Try to get audio only if video failed
           navigator.mediaDevices
-            .getUserMedia({ video: false, audio: true })
+            .getUserMedia({ video: false, audio: true }) // Request audio only
             .then((stream) => {
               localStream = stream;
-              localVideo.srcObject = stream; // Still set, but will just be audio (visuals will be black)
+              localVideo.srcObject = stream; // Still set srcObject; visuals will be black
               logMessage("Local media access granted (audio only).");
-              socket.emit("join-room", roomId);
+              socket.emit("join-room", roomId); // Join room even with audio-only
+
               startBtn.onclick = () => {
                 if (!peerConnection) {
                   startCall();
@@ -139,36 +241,40 @@
               };
             })
             .catch((audioError) => {
+              // If even audio access fails, disable the call button
               logMessage("No media (video or audio) access. Cannot make call.");
               console.error("Error accessing audio devices: ", audioError);
               startBtn.disabled = true; // Disable button if no media is available
+              startBtn.textContent = "Media Not Available";
             });
         });
 
-      // --- 2. Socket.IO Event Handlers ---
-      // These handle signaling messages exchanged via the server
+      // --- 2. Socket.IO Event Handlers (Signaling) ---
+      // These functions listen for messages from the signaling server (your Node.js server)
+      // to orchestrate the WebRTC connection.
 
-      // When another user joins the same room
+      // Event: 'user-joined' - triggered when another user connects to the same room
       socket.on("user-joined", async () => {
-        logMessage("Another user joined the room. Creating offer...");
-        // If we haven't started a call yet, start it now
+        logMessage("Another user joined the room. Creating WebRTC offer...");
+        // If we haven't started a call yet, initiate the RTCPeerConnection setup
         if (!peerConnection) {
           startCall();
         }
 
-        // Create an SDP offer (Session Description Protocol)
+        // Create an SDP (Session Description Protocol) offer
+        // This offer describes the media capabilities (e.g., video codecs) of the local peer
         const offer = await peerConnection.createOffer();
         // Set the local description of the RTCPeerConnection to this offer
         await peerConnection.setLocalDescription(offer);
         // Send the offer to the other peer via the signaling server
         socket.emit("offer", { offer, room: roomId });
-        logMessage("Offer sent.");
+        logMessage("Offer sent to peer.");
       });
 
-      // When an offer is received from another peer
+      // Event: 'offer' - triggered when an SDP offer is received from another peer
       socket.on("offer", async ({ offer }) => {
-        logMessage("Received offer. Creating answer...");
-        // If we haven't started a call yet, start it now
+        logMessage("Received SDP offer. Creating answer...");
+        // Ensure peer connection is set up if not already
         if (!peerConnection) {
           startCall();
         }
@@ -176,23 +282,26 @@
         // Set the remote description of the RTCPeerConnection to the received offer
         await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
         // Create an SDP answer in response to the offer
+        // The answer confirms compatibility and describes the local peer's capabilities
         const answer = await peerConnection.createAnswer();
         // Set the local description to this answer
         await peerConnection.setLocalDescription(answer);
-        // Send the answer to the other peer via the signaling server
+        // Send the answer back to the other peer via the signaling server
         socket.emit("answer", { answer, room: roomId });
-        logMessage("Answer sent.");
+        logMessage("Answer sent to peer.");
       });
 
-      // When an answer is received from another peer
+      // Event: 'answer' - triggered when an SDP answer is received from another peer
       socket.on("answer", async ({ answer }) => {
-        logMessage("Received answer.");
+        logMessage("Received SDP answer.");
         // Set the remote description to the received answer
         await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-        logMessage("Call established!");
+        logMessage("Call established: Remote description set!");
+        // At this point, ICE candidates should start flowing and media should connect
       });
 
-      // When an ICE candidate is received from another peer
+      // Event: 'ice-candidate' - triggered when an ICE candidate is received from another peer
+      // ICE candidates describe network addresses (IPs, ports) for direct peer-to-peer connection
       socket.on("ice-candidate", ({ candidate }) => {
         logMessage("Received ICE candidate.");
         // If the peer connection is already set up, add the candidate directly
@@ -204,98 +313,107 @@
         }
       });
 
-      // --- 3. WebRTC Call Setup Function ---
+      // --- 3. WebRTC Call Setup Function (`startCall`) ---
+      // This function initializes and configures the RTCPeerConnection.
       function startCall() {
-        // Create a new RTCPeerConnection instance
+        // Create a new RTCPeerConnection instance using the defined configuration
         peerConnection = new RTCPeerConnection(config);
+        logMessage("RTCPeerConnection created.");
 
-        // Add local media tracks to the peer connection
-        // This makes your audio/video available to the other peer
+        // Add local media tracks (audio and video) to the peer connection
+        // This makes your audio/video stream available to the other peer
         if (localStream) {
           localStream.getTracks().forEach((track) => {
             peerConnection.addTrack(track, localStream);
           });
           logMessage("Added local media tracks to peer connection.");
         } else {
-          logMessage("No local media stream to add to peer connection.");
+          logMessage("No local media stream available to add to peer connection.");
         }
 
-        // Event: When a remote track is received (from the other peer)
+        // Event: 'ontrack' - triggered when a remote media track is received from the other peer
+        // This is how you get the other user's audio/video stream
         peerConnection.ontrack = (event) => {
           // Set the received stream as the source for the remote video element
           if (remoteVideo.srcObject !== event.streams[0]) {
             remoteVideo.srcObject = event.streams[0];
-            logMessage("Remote stream received!");
+            logMessage("Remote stream received and displayed!");
           }
         };
 
-        // Event: When an ICE candidate is generated locally
-        // ICE candidates describe network addresses (IPs, ports) for direct connection
+        // Event: 'onicecandidate' - triggered when an ICE candidate is generated locally
+        // This happens as the browser tries to find the best network path to the other peer
         peerConnection.onicecandidate = (event) => {
           if (event.candidate) {
-            // Send the candidate to the other peer via the signaling server
+            // Send the generated ICE candidate to the other peer via the signaling server
             socket.emit("ice-candidate", {
               candidate: event.candidate,
               room: roomId,
             });
-            logMessage("Sent ICE candidate.");
+            logMessage("Sent local ICE candidate.");
           }
         };
 
-        // Event: Peer connection state changes
-        peerConnection.onconnectionstatechange = (event) => {
+        // Event: 'onconnectionstatechange' - tracks the overall state of the peer connection
+        peerConnection.onconnectionstatechange = () => {
           logMessage(`Peer connection state: ${peerConnection.connectionState}`);
           if (peerConnection.connectionState === 'connected') {
-            logMessage("Peer connection established!");
-          } else if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
-            logMessage("Peer connection disconnected or failed. Call ended.");
-            // Optionally, re-enable start button or prompt for reconnection
+            logMessage("WebRTC Peer connection established successfully!");
+          } else if (
+            peerConnection.connectionState === 'disconnected' ||
+            peerConnection.connectionState === 'failed' ||
+            peerConnection.connectionState === 'closed'
+          ) {
+            logMessage("Peer connection disconnected, failed, or closed. Call ended.");
+            // Reset UI for a new call
             startBtn.disabled = false;
-            startBtn.innerText = "Start New Call";
+            startBtn.textContent = "Start Call";
+            if (remoteVideo.srcObject) {
+              remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+              remoteVideo.srcObject = null;
+            }
+            if (peerConnection) {
+              peerConnection.close();
+              peerConnection = null;
+            }
           }
         };
 
 
-        // After the peer connection is set up, add any pending ICE candidates
-        // (candidates that arrived before peerConnection was initialized)
+        // After the peer connection is set up, process any ICE candidates
+        // that might have arrived *before* the `peerConnection` object was created.
         pendingCandidates.forEach((candidate) => {
           peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
         });
-        // Clear the pending candidates array
+        // Clear the pending candidates array as they've now been added
         pendingCandidates = [];
       }
 
-      // Helper function to display messages to the user
-      function logMessage(message) {
-        const p = document.createElement("p");
-        p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-        messagesDiv.prepend(p); // Add new messages at the top
-        // Keep only the last few messages to avoid clutter
-        if (messagesDiv.children.length > 5) {
-          messagesDiv.removeChild(messagesDiv.lastChild);
-        }
-      }
+      // --- 4. Handle User Disconnection (Client-Side Cleanup) ---
+      // These events are triggered by the server when a user leaves the room or disconnects.
 
-      // Handle user leaving/disconnecting (optional, but good for cleanup)
       socket.on("user-left", (userId) => {
         logMessage(`User ${userId} left the room.`);
-        // Optionally, clear remote video or reset peer connection
+        // Clean up remote video and peer connection when the other user leaves
         if (remoteVideo.srcObject) {
-          remoteVideo.srcObject = null;
+          remoteVideo.srcObject.getTracks().forEach(track => track.stop()); // Stop remote tracks
+          remoteVideo.srcObject = null; // Clear remote video display
         }
         if (peerConnection) {
-          peerConnection.close();
-          peerConnection = null;
+          peerConnection.close(); // Close the WebRTC connection
+          peerConnection = null; // Clear the peerConnection object
           logMessage("Peer connection closed due to user leaving.");
+          // Re-enable start button to allow a new call
           startBtn.disabled = false;
-          startBtn.innerText = "Start Call";
+          startBtn.textContent = "Start Call";
         }
       });
 
       socket.on("user-disconnected", (userId) => {
         logMessage(`User ${userId} disconnected.`);
-        // Same as user-left, but specific to full disconnection
+        // Similar cleanup for a full disconnection (e.g., browser tab closed)
         if (remoteVideo.srcObject) {
+          remoteVideo.srcObject.getTracks().forEach(track => track.stop());
           remoteVideo.srcObject = null;
         }
         if (peerConnection) {
@@ -303,7 +421,7 @@
           peerConnection = null;
           logMessage("Peer connection closed due to user disconnecting.");
           startBtn.disabled = false;
-          startBtn.innerText = "Start Call";
+          startBtn.textContent = "Start Call";
         }
       });
     </script>
