@@ -25,7 +25,7 @@ const io = new Server(server);
 // Key: roomId (string, the unique identifier for a room)
 // Value: An object containing:
 //   - creatorSocketId: The socket ID of the user who first created/joined this room.
-//                      This user will receive join requests.
+//                      This user will receive join requests for this room.
 //   - occupants: A Set of socket IDs currently connected and in this room.
 //                Using a Set allows for efficient adding/deleting and ensures uniqueness.
 const activeRooms = {};
@@ -161,7 +161,7 @@ io.on("connection", (socket) => {
       // 4. Notify all *other* users in the room (including the creator who accepted)
       //    that a new user has officially joined. This triggers the WebRTC
       //    offer/answer exchange (user-joined event from index.html).
-      //    `socket.to(roomId)` sends to all sockets in the room *except* the sender (the creator).
+      //    `socket.to(roomId)` sends to all sockets in the room *except* the sender.
       socket.to(roomId).emit("user-joined", requesterId);
       //    Also, explicitly tell the creator (the sender) that the new user joined,
       //    as `socket.to` excludes the sender.
@@ -198,21 +198,56 @@ io.on("connection", (socket) => {
     socket.to(data.room).emit("ice-candidate", data);
   });
 
+  // --- Event: 'leave-room' (from client) ---
+  // This custom event is sent by a client when they explicitly click the "Leave Call" button.
+  socket.on("leave-room", (roomId) => {
+    console.log(`User ${socket.id} explicitly leaving room: "${roomId}"`);
+    // Ensure the socket actually leaves the Socket.IO room
+    socket.leave(roomId);
+    
+    // Trigger the same cleanup logic as 'disconnecting' for this specific room
+    // This ensures other users are notified and room state is updated.
+    if (activeRooms[roomId] && activeRooms[roomId].occupants) {
+        activeRooms[roomId].occupants.delete(socket.id); // Remove from occupants
+        socket.to(roomId).emit("user-left", socket.id); // Notify others in room
+
+        // If the leaving user was the creator
+        if (activeRooms[roomId].creatorSocketId === socket.id) {
+            console.log(`Creator ${socket.id} of room "${roomId}" is explicitly leaving.`);
+            if (activeRooms[roomId].occupants.size > 0) {
+                // Elect a new creator (for simplicity, the first occupant in the set)
+                const newCreatorId = activeRooms[roomId].occupants.values().next().value;
+                activeRooms[roomId].creatorSocketId = newCreatorId;
+                io.to(newCreatorId).emit("you-are-creator", { roomId });
+                console.log(`New creator for room "${roomId}" is ${newCreatorId}.`);
+            } else {
+                // Room is now empty, delete it
+                delete activeRooms[roomId];
+                console.log(`Room "${roomId}" is now empty and deleted.`);
+            }
+        } else if (activeRooms[roomId].occupants.size === 0) {
+            // Room is empty and the creator was not the one leaving (they were already gone)
+            delete activeRooms[roomId];
+            console.log(`Room "${roomId}" is now empty and deleted.`);
+        }
+    }
+  });
+
+
   // --- Event: 'disconnecting' (Socket.IO Built-in Event) ---
   // This event fires just BEFORE a socket leaves all rooms.
   // It's ideal for broadcasting "user left" messages, as `socket.rooms` is still populated.
   socket.on("disconnecting", () => {
     console.log(`User ${socket.id} is disconnecting.`);
-    // Get all rooms the socket was a member of (excluding its own private socket.id room).
+    // Get all rooms the socket was in (excluding its own ID which is a default room)
     const roomsToLeave = [...socket.rooms].filter((r) => r !== socket.id);
 
     roomsToLeave.forEach((roomId) => {
-      // 1. Notify other users in the room that this user is leaving.
+      // Notify other users in the room that this user is leaving.
       socket.to(roomId).emit("user-left", socket.id);
 
-      // 2. Update the server's `activeRooms` state.
+      // Remove the user from the room's occupants set.
       if (activeRooms[roomId] && activeRooms[roomId].occupants) {
-        // Remove the disconnected user from the room's occupants set.
         activeRooms[roomId].occupants.delete(socket.id);
 
         // --- Creator Handover/Room Cleanup Logic ---
@@ -247,18 +282,18 @@ io.on("connection", (socket) => {
 
   // --- Event: 'disconnect' (Socket.IO Built-in Event) ---
   // This event fires AFTER the socket has completely disconnected and left all rooms.
-  // 'disconnecting' is generally preferred for room-specific cleanup.
+  // 'disconnecting' is generally preferred for room-specific cleanup that needs 'socket.rooms'.
   socket.on("disconnect", () => {
     console.log(`User disconnected: ${socket.id}`);
-    // No explicit room broadcast needed here as 'disconnecting' handles it.
+    // No explicit room broadcast needed here as 'disconnecting' handles the room-specific cleanup and notifications.
   });
 });
 
 // Define the port the server will listen on.
-// Uses process.env.PORT for deployment flexibility, or 5001 as a default.
+// Uses process.env.PORT for deployment flexibility (e.g., on Heroku), or 5001 as a default for local development.
 const PORT = process.env.PORT || 5001;
 
-// Start the HTTP server and listen for incoming connections.
+// Start the HTTP server and listen for incoming connections on the specified port.
 server.listen(PORT, () =>
   console.log(`Server running on http://localhost:${PORT}`)
 );
