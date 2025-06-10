@@ -348,6 +348,12 @@
       #messages p:last-child {
         border-bottom: none;
       }
+      /* Hide Message box in Mobile view */
+      @media (max-width: 768px) {
+        #messages {
+          display: none; /* Hide messages on mobile */
+        }
+      }
 
       /* --- Modal Styling --- */
       .modal {
